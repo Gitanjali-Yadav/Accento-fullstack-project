@@ -1,45 +1,55 @@
 from flask import Flask, request, jsonify
-from gradio_client import Client, handle_file
 from flask_cors import CORS
-import tempfile
-import os
+from gradio_client import Client, handle_file
+import tempfile, os
 
 app = Flask(__name__)
-# Enable CORS for local frontend dev server
-CORS(app, resources={r"/api/*": {"origins": ["http://localhost:3000", "http://127.0.0.1:3000"]}})
 
-# Initialize the Hugging Face Space client
+# ✅ CORS configuration (allows frontend → backend communication)
+CORS(app, resources={
+    r"/api/*": {
+        "origins": [
+            "https://accento-fullstack-project.netlify.app"
+        ]
+    }
+})
+
+# ✅ Load your Hugging Face model
 client = Client("Gitanjaliyadav29/accento-ml-model")
+
 
 @app.route("/api/predict", methods=["POST"])
 def predict_accent():
+    # Check for file upload
     if "audio" not in request.files:
         return jsonify({"error": "No audio file uploaded"}), 400
 
-    # Save uploaded file temporarily
     audio = request.files["audio"]
-
-    # Validate file extension
-    filename = audio.filename or ""
-    ext = os.path.splitext(filename)[1].lower()
+    ext = os.path.splitext(audio.filename or "")[1].lower()
     if ext not in [".wav", ".mp3"]:
-        return jsonify({"error": "Invalid file type. Only .wav or .mp3 allowed."}), 400
+        return jsonify({"error": "Invalid file type. Please upload .wav or .mp3"}), 400
 
-    # Save uploaded file temporarily, keep original extension
+    # Save temp file for processing
     temp_path = tempfile.mktemp(suffix=ext)
     audio.save(temp_path)
 
     try:
-        result = client.predict(
-            audio_file=handle_file(temp_path),
-            api_name="/predict"
-        )
-        return jsonify({"prediction": result}), 200
+        # Run prediction via Hugging Face Gradio Client
+        result = client.predict(audio_file=handle_file(temp_path), api_name="/predict")
+        return jsonify({"prediction": result})
     except Exception as e:
+        print("❌ Prediction error:", str(e))
         return jsonify({"error": str(e)}), 500
     finally:
         if os.path.exists(temp_path):
             os.remove(temp_path)
 
+
+@app.route("/", methods=["GET"])
+def index():
+    # Optional: helpful homepage message for sanity check
+    return jsonify({"message": "Accento Flask API is live!", "status": "OK"})
+
+
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000)
