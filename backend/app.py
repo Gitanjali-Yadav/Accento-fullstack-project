@@ -9,7 +9,7 @@ app = Flask(__name__)
 CORS(app, resources={
     r"/api/*": {
         "origins": [
-            "https://accento-fullstack-project.netlify.app"
+            "https://accento-prototype.netlify.app/"
         ]
     }
 })
